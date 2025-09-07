@@ -5,9 +5,86 @@ import StatsAndFilters from '@/components/StatsAndFilters'
 import TaskListPagination from '@/components/TaskListPagination'
 import TaskList from '@/components/TaskList'
 import Footer from '@/components/Footer'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import   api from "@/lib/axios"
+import { visibleTaskLimit } from '@/lib/data'
 
 const HomePage = () => {
+  const [taskBuffer, setTaskBuffer] = useState([]);
+  const [activeTaskCount, setActiveTaskCount] = useState(0);
+  const [completeTaskCount, setCompleteTaskCount] = useState(0);
+  const [filter, setFilter] = useState("all");
+  const [dataQuery, setDataQuery] = useState('today');
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [dataQuery]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, dataQuery]);
+
+  const fetchTasks = async () => {
+    try {
+      const res = await api.get(`/tasks?filter=${dataQuery}`);
+      setTaskBuffer(res.data.tasks);
+      setActiveTaskCount(res.data.activeCount);
+      setCompleteTaskCount(res.data.completeCount);
+
+      // console.log(res.data);
+    } catch (error) {
+      console.error("Lỗi xảy ra khi truy xuất tasks:", error);
+      toast.error("Lỗi xảy ra khi truy xuất tasks.");
+    }
+  }
+
+  const handleTaskChanged = () => {
+    fetchTasks();
+  }
+
+  const handleNext = () => {
+    if(page < totalPages) {
+      setPage((prev) => prev + 1);
+    }
+  };
+
+  const handlePrev = () => {
+    if(page > 1) {
+      setPage((prev) => prev - 1);
+    }
+  };
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage)
+  }
+
+  // biến
+  const filteredTasks = taskBuffer.filter((task) => {
+    switch (filter) {
+      case "active":
+        return task.status === "active";
+      case "completed":
+        return task.status === "complete";
+      default:
+        return true;
+    }
+  });
+
+  const visibleTasks = filteredTasks.slice(
+    (page - 1) * visibleTaskLimit,
+    page * visibleTaskLimit
+  );
+
+  if(visibleTasks.length === 0) {
+    handlePrev();
+  }
+
+  const totalPages = Math.ceil(filteredTasks.length / visibleTaskLimit);
+
+
+  
   return (
     <div className="min-h-screen w-full bg-[#fefcff] relative">      
       {/* Dreamy Sky Pink Glow */}
@@ -28,18 +105,38 @@ const HomePage = () => {
           <Header/>
 
           {/* Tạo nhiệm vụ */}
-          <AddTask/>
+          <AddTask
+            handleNewTaskAdded={handleTaskChanged}
+          />
 
           {/* Thống kê và Bộ lọc */}
-          <StatsAndFilters/>
+          <StatsAndFilters
+            filter={filter}
+            setFilter={setFilter}
+            activeTasksCount={activeTaskCount}
+            completedTasksCount={completeTaskCount}
+          />
 
           {/* Danh sách nhiệm vụ */}
-          <TaskList/>
+          <TaskList 
+            filteredTasks={visibleTasks}
+            filter={filter}
+            handleTaskChange={handleTaskChanged}
+          />
 
           {/* Phân trang và lọc theo Date */}
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <TaskListPagination/>
-            <DateTimeFilter/>
+            <TaskListPagination
+              handleNext={handleNext}
+              handlePrev={handlePrev}
+              handlePageChange={handlePageChange}
+              page={page}
+              totalPages={totalPages}
+            />
+            <DateTimeFilter 
+              dataQuery={dataQuery} 
+              setDataQuery={setDataQuery}
+            />
           </div>
 
           {/* Chân trang */}
